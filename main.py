@@ -6,7 +6,7 @@ import sqlite3,secrets,os,threading
 ADMIN_USER=os.getenv("ADMIN_USER")or"admin"
 ADMIN_PASS=os.getenv("ADMIN_PASS")or os.getenv("ADMIN_KEY")or"admin123"
 BOT_SECRET=os.getenv("BOT_SECRET")or os.getenv("CONFIG_BOT_SECRET")or"bot_secret_123"
-DB_PATH=os.getenv("DB_PATH")or"/tmp/bot_config.db"
+DB_PATH="/tmp/bot_config.db"
 db_lock=threading.Lock()
 def get_db():
  conn=sqlite3.connect(DB_PATH,check_same_thread=False)

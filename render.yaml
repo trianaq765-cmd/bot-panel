@@ -10,4 +10,4 @@ services:
       - key: ADMIN_PASS
         value: admin123
       - key: BOT_SECRET
-        value: rahasia_bot_123
+        value: ce97679edf2b661ed08f6775508cf0fd

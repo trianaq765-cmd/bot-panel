@@ -4,7 +4,7 @@ from fastapi.security import HTTPBasic,HTTPBasicCredentials
 from contextlib import asynccontextmanager
 import sqlite3,secrets,os,threading,json
 
-# --- 40+ MODEL LENGKAP ---
+# --- DEFAULT MODELS ---
 DEFAULT_MODELS = {
     # GROQ
     "groq":{"e":"⚡","n":"Groq","d":"Llama 3.3 70B","c":"main","p":"groq","m":"llama-3.3-70b-versatile"},
@@ -81,6 +81,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS user_models(uid TEXT PRIMARY KEY,model_id TEXT);
             CREATE TABLE IF NOT EXISTS logs(id INTEGER PRIMARY KEY AUTOINCREMENT,ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,action TEXT,details TEXT);
         ''')
+        # Auto-fill defaults if empty
         if conn.execute("SELECT COUNT(*) FROM api_keys").fetchone()[0] == 0:
             for k,v in DEFAULT_KEYS.items():
                 if v: conn.execute("INSERT OR IGNORE INTO api_keys VALUES(?,?)",(k,v))
@@ -151,10 +152,12 @@ def api_config(req:Request):
     auth_bot(req)
     return config()
 
+# --- HTML TEMPLATES ---
 def page(title,content,active=""):
     nav=[("dash","📊","Dashboard"),("keys","🔑","API Keys"),("models","🤖","Models"),("users","👥","Users"),("settings","⚙️","Settings"),("logs","📋","Logs")]
     n="".join([f'<a href="/{k}" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 {"bg-blue-600 shadow-lg shadow-blue-500/30 text-white" if k==active else "text-gray-400 hover:bg-gray-800 hover:text-white"}"><span class="text-lg">{e}</span> <span class="font-medium">{l}</span></a>'for k,e,l in nav])
-    return f'''<!DOCTYPE html><html class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} - Panel</title><script src="https://cdn.tailwindcss.com"></script><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');body{{font-family:'Inter',sans-serif}}::-webkit-scrollbar{{width:8px}}::-webkit-scrollbar-track{{background:#111827}}::-webkit-scrollbar-thumb{{background:#374151;border-radius:4px}}</style><script>tailwind.config={{darkMode:'class',theme:{{extend:{{colors:{{dark:{{900:'#0f172a',800:'#1e293b',700:'#334155'}}}}}}}}}}</script></head><body class="bg-dark-900 text-gray-100"><div class="flex min-h-screen"><aside class="w-72 bg-dark-800 border-r border-dark-700 fixed h-full hidden md:flex flex-col"><div class="p-6 border-b border-dark-700"><h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Bot Panel</h1><p class="text-xs text-gray-500 mt-1">v2.0 Pro</p></div><nav class="flex-1 p-4 space-y-2 overflow-y-auto">{n}</nav></aside><main class="flex-1 md:ml-72 p-8"><header class="flex justify-between items-center mb-8 md:hidden"><h1 class="text-xl font-bold">Bot Panel</h1></header>{content}</main></div></body></html>'''
+    
+    return f'''<!DOCTYPE html><html class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} - Bot Panel</title><script src="https://cdn.tailwindcss.com"></script><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');body{{font-family:'Inter',sans-serif}}::-webkit-scrollbar{{width:8px}}::-webkit-scrollbar-track{{background:#111827}}::-webkit-scrollbar-thumb{{background:#374151;border-radius:4px}}</style><script>tailwind.config={{darkMode:'class',theme:{{extend:{{colors:{{dark:{{900:'#0f172a',800:'#1e293b',700:'#334155'}}}}}}}}}}</script></head><body class="bg-dark-900 text-gray-100"><div class="flex min-h-screen"><aside class="w-72 bg-dark-800 border-r border-dark-700 fixed h-full hidden md:flex flex-col"><div class="p-6 border-b border-dark-700"><h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Bot Panel</h1><p class="text-xs text-gray-500 mt-1">v2.0 Pro</p></div><nav class="flex-1 p-4 space-y-2 overflow-y-auto">{n}</nav></aside><main class="flex-1 md:ml-72 p-8"><header class="flex justify-between items-center mb-8 md:hidden"><h1 class="text-xl font-bold">Bot Panel</h1></header>{content}</main></div></body></html>'''
 
 @app.get("/dash",response_class=HTMLResponse)
 def dashboard(u:str=Depends(auth_admin)):
@@ -170,32 +173,31 @@ def keys_page(u:str=Depends(auth_admin)):
     for p in provs:
         v=c['keys'].get(p,"")
         st='<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>' if v else '<span class="w-2 h-2 rounded-full bg-red-500"></span>'
-        rows+=f'<div class="group relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">{st}</div><input type="password" name="{p}" value="{v}" class="block w-full pl-8 pr-3 py-3 bg-dark-900 border border-dark-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-sm" placeholder="{p.title()}"></div>'
-    h=f'''<div class="max-w-4xl mx-auto"><h2 class="text-3xl font-bold mb-8">API Keys</h2><form action="/keys" method="post" class="bg-dark-800 p-8 rounded-2xl border border-dark-700 shadow-xl"><div class="grid grid-cols-1 md:grid-cols-2 gap-6">{rows}</div><div class="mt-8 pt-6 border-t border-dark-700 flex justify-end gap-4"><button type="submit" formaction="/keys/sync" class="px-6 py-3 text-blue-400 hover:text-white transition-colors">Sync Env</button><button type="submit" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-all">Save</button></div></form></div>'''
+        rows+=f'<div class="group relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">{st}</div><input type="password" name="{p}" value="{v}" class="block w-full pl-8 pr-3 py-3 bg-dark-900 border border-dark-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-sm" placeholder="{p.title()} Key"></div>'
+    
+    h=f'''<div class="max-w-4xl mx-auto"><h2 class="text-3xl font-bold mb-8">API Keys</h2><form action="/keys" method="post" class="bg-dark-800 p-8 rounded-2xl border border-dark-700 shadow-xl"><div class="grid grid-cols-1 md:grid-cols-2 gap-6">{rows}</div><div class="mt-8 pt-6 border-t border-dark-700 flex justify-end gap-4"><button type="submit" formaction="/keys/sync" class="px-6 py-3 text-blue-400 hover:text-white transition-colors">Sync Env</button><button type="submit" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-all">Save Changes</button></div></form></div>'''
     return page("API Keys",h,"keys")
 
 @app.post("/keys")
 async def save_keys(req:Request,u:str=Depends(auth_admin)):
     f=await req.form()
-    log_action("save_keys","Updated API keys")
+    log_action("save_keys","Updated keys")
     with db_lock:
         conn=get_db()
         for k,v in f.items():
             if v.strip(): conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v.strip()))
             else: conn.execute('DELETE FROM api_keys WHERE name=?',(k,))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/keys",303)
 
 @app.post("/keys/sync")
 async def sync_keys(u:str=Depends(auth_admin)):
-    log_action("sync_keys","Synced from Environment")
+    log_action("sync_keys","Synced Env")
     with db_lock:
         conn=get_db()
         for k,v in DEFAULT_KEYS.items():
             if v: conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/keys",303)
 
 @app.get("/models",response_class=HTMLResponse)
@@ -203,8 +205,9 @@ def models_page(u:str=Depends(auth_admin)):
     c=config()
     rows=""
     for k,m in c['models'].items():
-        rows+=f'<tr class="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"><td class="py-4 px-4 font-mono text-blue-400 text-sm">{k}</td><td class="py-4 px-4"><span class="text-xl mr-2">{m["e"]}</span>{m["n"]}</td><td class="py-4 px-4"><span class="px-2 py-1 bg-dark-900 rounded-lg text-xs border border-dark-600">{m["p"]}</span></td><td class="py-4 px-4 text-sm text-gray-400 font-mono">{m["m"][:20]}...</td><td class="py-4 px-4"><form action="/models/del" method="post"><input type="hidden" name="id" value="{k}"><button class="text-red-500 hover:text-white transition-colors">🗑️</button></form></td></tr>'
-    h=f'''<div class="space-y-8"><div class="flex justify-between items-center"><h2 class="text-3xl font-bold">Models</h2><form action="/models/reset" method="post"><button class="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl border border-red-500/20 transition-all text-sm font-bold">⚠️ Reset Defaults ({len(DEFAULT_MODELS)} Models)</button></form></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-8"><div class="lg:col-span-1"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 sticky top-4"><h3 class="font-bold mb-6 text-lg">➕ Add Model</h3><form action="/models/add" method="post" class="space-y-4"><input name="id" required placeholder="Unique ID (ex: my_gpt)" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><input name="name" required placeholder="Display Name" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><div class="grid grid-cols-2 gap-4"><select name="provider" class="bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm"><option value="groq">Groq</option><option value="openrouter">OpenRouter</option><option value="gemini">Gemini</option><option value="pollinations_free">PollFree</option></select><input name="emoji" placeholder="Emoji" value="🤖" class="bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm text-center"></div><input name="model_id" required placeholder="API Model ID" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm font-mono"><button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all">Add Model</button></form></div></div><div class="lg:col-span-2"><div class="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden"><table class="w-full text-left"><thead><tr class="bg-dark-900/50 border-b border-dark-700"><th class="py-4 px-4 font-medium text-gray-400 text-sm">ID</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Name</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Provider</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Model ID</th><th class="py-4 px-4"></th></tr></thead><tbody>{rows}</tbody></table></div></div></div></div>'''
+        rows+=f'<tr class="border-b border-dark-700 hover:bg-dark-700/50"><td class="py-4 px-4 font-mono text-blue-400 text-sm">{k}</td><td class="py-4 px-4">{m["e"]} {m["n"]}</td><td class="py-4 px-4"><span class="px-2 py-1 bg-dark-900 rounded text-xs border border-dark-600">{m["p"]}</span></td><td class="py-4 px-4 text-sm text-gray-400 font-mono">{m["m"][:25]}...</td><td class="py-4 px-4"><form action="/models/del" method="post"><input type="hidden" name="id" value="{k}"><button class="text-red-500 hover:text-white transition-colors">🗑️</button></form></td></tr>'
+    
+    h=f'''<div class="space-y-8"><div class="flex justify-between items-center"><h2 class="text-3xl font-bold">Models</h2><form action="/models/reset" method="post"><button class="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl border border-red-500/20 text-sm font-bold">⚠️ Reset Defaults ({len(DEFAULT_MODELS)} Models)</button></form></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-8"><div class="lg:col-span-1"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 sticky top-4"><h3 class="font-bold mb-6 text-lg">➕ Add Model</h3><form action="/models/add" method="post" class="space-y-4"><input name="id" required placeholder="Unique ID (ex: my_gpt)" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><input name="name" required placeholder="Display Name" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><div class="grid grid-cols-2 gap-4"><select name="provider" class="bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm"><option value="groq">Groq</option><option value="openrouter">OpenRouter</option><option value="gemini">Gemini</option><option value="pollinations_free">PollFree</option></select><input name="emoji" placeholder="Emoji" value="🤖" class="bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm text-center"></div><input name="model_id" required placeholder="API Model ID" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm font-mono"><button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold shadow-lg transition-all">Add Model</button></form></div></div><div class="lg:col-span-2"><div class="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden"><table class="w-full text-left"><thead><tr class="bg-dark-900/50 border-b border-dark-700"><th class="py-4 px-4 text-gray-400 text-sm">ID</th><th class="py-4 px-4 text-gray-400 text-sm">Name</th><th class="py-4 px-4 text-gray-400 text-sm">Provider</th><th class="py-4 px-4 text-gray-400 text-sm">Model ID</th><th class="py-4 px-4"></th></tr></thead><tbody>{rows}</tbody></table></div></div></div></div>'''
     return page("Models",h,"models")
 
 @app.post("/models/add")
@@ -214,8 +217,7 @@ async def add_model(req:Request,u:str=Depends(auth_admin)):
     with db_lock:
         conn=get_db()
         conn.execute('INSERT OR REPLACE INTO custom_models VALUES(?,?,?,?,?,?,?)',(f['id'],f['name'],f['provider'],f['model_id'],f.get('emoji','🤖'),f.get('description',''),f.get('category','custom')))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/models",303)
 
 @app.post("/models/del")
@@ -225,19 +227,18 @@ async def del_model(req:Request,u:str=Depends(auth_admin)):
     with db_lock:
         conn=get_db()
         conn.execute('DELETE FROM custom_models WHERE id=?',(f['id'],))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/models",303)
 
 @app.post("/models/reset")
 async def reset_models(u:str=Depends(auth_admin)):
+    log_action("reset_models")
     with db_lock:
         conn=get_db()
         conn.execute('DELETE FROM custom_models')
         for k,m in DEFAULT_MODELS.items():
             conn.execute("INSERT INTO custom_models VALUES(?,?,?,?,?,?,?)",(k,m['n'],m['p'],m['m'],m['e'],m['d'],m['c']))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/models",303)
 
 @app.get("/users",response_class=HTMLResponse)
@@ -246,7 +247,13 @@ def users_page(u:str=Depends(auth_admin)):
     rows=""
     for uid,mid in c['user_models'].items():
         rows+=f'<tr class="border-b border-dark-700"><td class="py-4 px-4 font-mono text-gray-300">{uid}</td><td class="py-4 px-4"><span class="px-2 py-1 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20 text-sm">{mid}</span></td><td class="py-4 px-4"><form action="/users/del" method="post"><input type="hidden" name="uid" value="{uid}"><button class="text-red-500 hover:text-white transition-colors">✕</button></form></td></tr>'
-    h=f'''<div class="max-w-5xl mx-auto space-y-8"><h2 class="text-3xl font-bold">User Management</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 h-fit"><h3 class="font-bold mb-4 text-lg">Set User Model</h3><form action="/users/set" method="post" class="space-y-4"><input name="uid" required placeholder="Discord User ID" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><input name="model_id" required placeholder="Model ID (ex: groq)" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded-xl font-bold text-black shadow-lg shadow-yellow-500/20 transition-all">Assign Model</button></form></div><div class="md:col-span-2 bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden"><table class="w-full text-left"><thead><tr class="bg-dark-900/50 border-b border-dark-700"><th class="py-4 px-4 text-sm font-medium text-gray-400">User ID</th><th class="py-4 px-4 text-sm font-medium text-gray-400">Assigned Model</th><th class="py-4 px-4"></th></tr></thead><tbody>{rows}</tbody></table></div></div></div>'''
+    
+    # Get models for dropdown
+    model_opts=""
+    for k,m in c['models'].items():
+        model_opts+=f'<option value="{k}">{m["e"]} {m["n"]} ({k})</option>'
+
+    h=f'''<div class="max-w-5xl mx-auto space-y-8"><h2 class="text-3xl font-bold">User Management</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 h-fit"><h3 class="font-bold mb-4 text-lg">Set User Model</h3><form action="/users/set" method="post" class="space-y-4"><input name="uid" required placeholder="Discord User ID" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><select name="model_id" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{model_opts}</select><button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded-xl font-bold text-black shadow-lg shadow-yellow-500/20 transition-all">Assign Model</button></form></div><div class="md:col-span-2 bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden"><table class="w-full text-left"><thead><tr class="bg-dark-900/50 border-b border-dark-700"><th class="py-4 px-4 text-sm font-medium text-gray-400">User ID</th><th class="py-4 px-4 text-sm font-medium text-gray-400">Assigned Model</th><th class="py-4 px-4"></th></tr></thead><tbody>{rows}</tbody></table></div></div></div>'''
     return page("Users",h,"users")
 
 @app.post("/users/set")
@@ -256,8 +263,7 @@ async def set_user(req:Request,u:str=Depends(auth_admin)):
     with db_lock:
         conn=get_db()
         conn.execute('INSERT OR REPLACE INTO user_models VALUES(?,?)',(f['uid'],f['model_id']))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/users",303)
 
 @app.post("/users/del")
@@ -267,8 +273,7 @@ async def del_user(req:Request,u:str=Depends(auth_admin)):
     with db_lock:
         conn=get_db()
         conn.execute('DELETE FROM user_models WHERE uid=?',(f['uid'],))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/users",303)
 
 @app.get("/settings",response_class=HTMLResponse)
@@ -276,16 +281,21 @@ def settings_page(u:str=Depends(auth_admin)):
     c=config()
     s=c['settings']
     models=c['models']
+    
+    # Group models by provider
     grps={}
     for k,m in models.items():
         p=m['p']
         grps.setdefault(p,[]).append((k,m))
+    
     opts=""
     for p,items in grps.items():
         opts+=f'<optgroup label="{p.upper()}">'
         for k,m in items:
-            opts+=f'<option value="{k}" {"selected" if k==s.get("default_model") else ""}>{m["e"]} {m["n"]}</option>'
+            sel="selected" if k==s.get("default_model") else ""
+            opts+=f'<option value="{k}" {sel}>{m["e"]} {m["n"]}</option>'
         opts+='</optgroup>'
+        
     h=f'''<div class="max-w-3xl mx-auto"><h2 class="text-3xl font-bold mb-8">System Settings</h2><form action="/settings" method="post" class="bg-dark-800 p-8 rounded-2xl border border-dark-700 shadow-xl space-y-6"><div><label class="block text-gray-400 mb-2 font-medium">Default Model</label><select name="default_model" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{opts}</select></div><div><label class="block text-gray-400 mb-2 font-medium">System Prompt</label><textarea name="system_prompt" rows="5" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none leading-relaxed">{s.get('system_prompt','')}</textarea></div><div class="grid grid-cols-3 gap-6"><div><label class="block text-gray-400 mb-2 text-sm">Rate Limit (s)</label><input type="number" name="rate_limit_ai" value="{s.get('rate_limit_ai','5')}" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-center font-mono"></div><div><label class="block text-gray-400 mb-2 text-sm">Max Memory</label><input type="number" name="max_memory_messages" value="{s.get('max_memory_messages','25')}" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-center font-mono"></div><div><label class="block text-gray-400 mb-2 text-sm">Timeout (min)</label><input type="number" name="memory_timeout_minutes" value="{s.get('memory_timeout_minutes','30')}" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-center font-mono"></div></div><div class="pt-6 border-t border-dark-700"><button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-xl font-bold shadow-lg shadow-purple-500/20 transition-all">Save Changes</button></div></form></div>'''
     return page("Settings",h,"settings")
 
@@ -297,8 +307,7 @@ async def save_settings(req:Request,u:str=Depends(auth_admin)):
         conn=get_db()
         for k,v in f.items():
             conn.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',(k,v))
-        conn.commit()
-        conn.close()
+        conn.commit();conn.close()
     return RedirectResponse("/settings",303)
 
 @app.get("/logs",response_class=HTMLResponse)

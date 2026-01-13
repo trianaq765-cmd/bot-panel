@@ -4,7 +4,7 @@ from fastapi.security import HTTPBasic,HTTPBasicCredentials
 from contextlib import asynccontextmanager
 import sqlite3,secrets,os,threading,json
 
-# --- DEFAULT MODELS ---
+# --- 40+ MODEL LENGKAP ---
 DEFAULT_MODELS = {
     # GROQ
     "groq":{"e":"⚡","n":"Groq","d":"Llama 3.3 70B","c":"main","p":"groq","m":"llama-3.3-70b-versatile"},
@@ -106,14 +106,17 @@ def log_action(action,details=""):
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
-    init_db();yield
+    init_db()
+    yield
 
 app=FastAPI(docs_url=None,redoc_url=None,lifespan=lifespan)
 security=HTTPBasic()
 
 def get_key(name):
     with db_lock:
-        conn=get_db();r=conn.execute('SELECT key_value FROM api_keys WHERE name=?',(name,)).fetchone();conn.close()
+        conn=get_db()
+        r=conn.execute('SELECT key_value FROM api_keys WHERE name=?',(name,)).fetchone()
+        conn.close()
         return r['key_value']if r else None
 
 def config():
@@ -145,7 +148,8 @@ def health():return{"status":"ok","admin":ADMIN_USER}
 
 @app.get("/api/bot/config")
 def api_config(req:Request):
-    auth_bot(req);return config()
+    auth_bot(req)
+    return config()
 
 def page(title,content,active=""):
     nav=[("dash","📊","Dashboard"),("keys","🔑","API Keys"),("models","🤖","Models"),("users","👥","Users"),("settings","⚙️","Settings"),("logs","📋","Logs")]
@@ -154,14 +158,19 @@ def page(title,content,active=""):
 
 @app.get("/dash",response_class=HTMLResponse)
 def dashboard(u:str=Depends(auth_admin)):
-    c=config();h=f'''<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Keys</p><p class="text-3xl font-bold text-green-400">{len(c["keys"])}</p></div><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Models</p><p class="text-3xl font-bold text-blue-400">{len(c["models"])}</p></div><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Users</p><p class="text-3xl font-bold text-yellow-400">{len(c["user_models"])}</p></div><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Active</p><p class="text-xl font-bold text-purple-400">{c["settings"].get("default_model","groq")}</p></div></div>'''
+    c=config()
+    h=f'''<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Keys</p><p class="text-3xl font-bold text-green-400">{len(c["keys"])}</p></div><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Models</p><p class="text-3xl font-bold text-blue-400">{len(c["models"])}</p></div><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Users</p><p class="text-3xl font-bold text-yellow-400">{len(c["user_models"])}</p></div><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 shadow-xl"><p class="text-gray-400 text-sm">Active</p><p class="text-xl font-bold text-purple-400">{c["settings"].get("default_model","groq")}</p></div></div>'''
     return page("Dashboard",h,"dash")
 
 @app.get("/keys",response_class=HTMLResponse)
 def keys_page(u:str=Depends(auth_admin)):
-    c=config();provs=["groq","openrouter","gemini","cerebras","sambanova","cohere","mistral","together","moonshot","pollinations","tavily","cloudflare_account","cloudflare_token"]
+    c=config()
+    provs=["groq","openrouter","gemini","cerebras","sambanova","cohere","mistral","together","moonshot","pollinations","tavily","cloudflare_account","cloudflare_token"]
     rows=""
-    for p in provs:v=c['keys'].get(p,"");st='<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>' if v else '<span class="w-2 h-2 rounded-full bg-red-500"></span>';rows+=f'<div class="group relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">{st}</div><input type="password" name="{p}" value="{v}" class="block w-full pl-8 pr-3 py-3 bg-dark-900 border border-dark-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-sm" placeholder="{p.title()}"></div>'
+    for p in provs:
+        v=c['keys'].get(p,"")
+        st='<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>' if v else '<span class="w-2 h-2 rounded-full bg-red-500"></span>'
+        rows+=f'<div class="group relative"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">{st}</div><input type="password" name="{p}" value="{v}" class="block w-full pl-8 pr-3 py-3 bg-dark-900 border border-dark-700 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-sm" placeholder="{p.title()}"></div>'
     h=f'''<div class="max-w-4xl mx-auto"><h2 class="text-3xl font-bold mb-8">API Keys</h2><form action="/keys" method="post" class="bg-dark-800 p-8 rounded-2xl border border-dark-700 shadow-xl"><div class="grid grid-cols-1 md:grid-cols-2 gap-6">{rows}</div><div class="mt-8 pt-6 border-t border-dark-700 flex justify-end gap-4"><button type="submit" formaction="/keys/sync" class="px-6 py-3 text-blue-400 hover:text-white transition-colors">Sync Env</button><button type="submit" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-all">Save</button></div></form></div>'''
     return page("API Keys",h,"keys")
 
@@ -174,7 +183,8 @@ async def save_keys(req:Request,u:str=Depends(auth_admin)):
         for k,v in f.items():
             if v.strip(): conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v.strip()))
             else: conn.execute('DELETE FROM api_keys WHERE name=?',(k,))
-        conn.commit();conn.close()
+        conn.commit()
+        conn.close()
     return RedirectResponse("/keys",303)
 
 @app.post("/keys/sync")
@@ -184,56 +194,97 @@ async def sync_keys(u:str=Depends(auth_admin)):
         conn=get_db()
         for k,v in DEFAULT_KEYS.items():
             if v: conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v))
-        conn.commit();conn.close()
+        conn.commit()
+        conn.close()
     return RedirectResponse("/keys",303)
 
 @app.get("/models",response_class=HTMLResponse)
 def models_page(u:str=Depends(auth_admin)):
-    c=config();rows=""
-    for k,m in c['models'].items():rows+=f'<tr class="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"><td class="py-4 px-4 font-mono text-blue-400 text-sm">{k}</td><td class="py-4 px-4"><span class="text-xl mr-2">{m["e"]}</span>{m["n"]}</td><td class="py-4 px-4"><span class="px-2 py-1 bg-dark-900 rounded-lg text-xs border border-dark-600">{m["p"]}</span></td><td class="py-4 px-4 text-sm text-gray-400 font-mono">{m["m"][:20]}...</td><td class="py-4 px-4"><form action="/models/del" method="post"><input type="hidden" name="id" value="{k}"><button class="text-red-500 hover:text-white transition-colors">🗑️</button></form></td></tr>'
+    c=config()
+    rows=""
+    for k,m in c['models'].items():
+        rows+=f'<tr class="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"><td class="py-4 px-4 font-mono text-blue-400 text-sm">{k}</td><td class="py-4 px-4"><span class="text-xl mr-2">{m["e"]}</span>{m["n"]}</td><td class="py-4 px-4"><span class="px-2 py-1 bg-dark-900 rounded-lg text-xs border border-dark-600">{m["p"]}</span></td><td class="py-4 px-4 text-sm text-gray-400 font-mono">{m["m"][:20]}...</td><td class="py-4 px-4"><form action="/models/del" method="post"><input type="hidden" name="id" value="{k}"><button class="text-red-500 hover:text-white transition-colors">🗑️</button></form></td></tr>'
     h=f'''<div class="space-y-8"><div class="flex justify-between items-center"><h2 class="text-3xl font-bold">Models</h2><form action="/models/reset" method="post"><button class="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl border border-red-500/20 transition-all text-sm font-bold">⚠️ Reset Defaults ({len(DEFAULT_MODELS)} Models)</button></form></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-8"><div class="lg:col-span-1"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 sticky top-4"><h3 class="font-bold mb-6 text-lg">➕ Add Model</h3><form action="/models/add" method="post" class="space-y-4"><input name="id" required placeholder="Unique ID (ex: my_gpt)" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><input name="name" required placeholder="Display Name" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><div class="grid grid-cols-2 gap-4"><select name="provider" class="bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm"><option value="groq">Groq</option><option value="openrouter">OpenRouter</option><option value="gemini">Gemini</option><option value="pollinations_free">PollFree</option></select><input name="emoji" placeholder="Emoji" value="🤖" class="bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm text-center"></div><input name="model_id" required placeholder="API Model ID" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm font-mono"><button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all">Add Model</button></form></div></div><div class="lg:col-span-2"><div class="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden"><table class="w-full text-left"><thead><tr class="bg-dark-900/50 border-b border-dark-700"><th class="py-4 px-4 font-medium text-gray-400 text-sm">ID</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Name</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Provider</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Model ID</th><th class="py-4 px-4"></th></tr></thead><tbody>{rows}</tbody></table></div></div></div></div>'''
     return page("Models",h,"models")
 
 @app.post("/models/add")
 async def add_model(req:Request,u:str=Depends(auth_admin)):
-    f=await req.form();log_action("add_model",f"Added {f['id']}");with db_lock:conn=get_db();conn.execute('INSERT OR REPLACE INTO custom_models VALUES(?,?,?,?,?,?,?)',(f['id'],f['name'],f['provider'],f['model_id'],f.get('emoji','🤖'),f.get('description',''),f.get('category','custom')));conn.commit();conn.close()
+    f=await req.form()
+    log_action("add_model",f"Added {f['id']}")
+    with db_lock:
+        conn=get_db()
+        conn.execute('INSERT OR REPLACE INTO custom_models VALUES(?,?,?,?,?,?,?)',(f['id'],f['name'],f['provider'],f['model_id'],f.get('emoji','🤖'),f.get('description',''),f.get('category','custom')))
+        conn.commit()
+        conn.close()
     return RedirectResponse("/models",303)
 
 @app.post("/models/del")
 async def del_model(req:Request,u:str=Depends(auth_admin)):
-    f=await req.form();log_action("del_model",f"Deleted {f['id']}");with db_lock:conn=get_db();conn.execute('DELETE FROM custom_models WHERE id=?',(f['id'],));conn.commit();conn.close()
+    f=await req.form()
+    log_action("del_model",f"Deleted {f['id']}")
+    with db_lock:
+        conn=get_db()
+        conn.execute('DELETE FROM custom_models WHERE id=?',(f['id'],))
+        conn.commit()
+        conn.close()
     return RedirectResponse("/models",303)
 
 @app.post("/models/reset")
 async def reset_models(u:str=Depends(auth_admin)):
-    with db_lock:conn=get_db();conn.execute('DELETE FROM custom_models');[conn.execute("INSERT INTO custom_models VALUES(?,?,?,?,?,?,?)",(k,m['n'],m['p'],m['m'],m['e'],m['d'],m['c'])) for k,m in DEFAULT_MODELS.items()];conn.commit();conn.close()
+    with db_lock:
+        conn=get_db()
+        conn.execute('DELETE FROM custom_models')
+        for k,m in DEFAULT_MODELS.items():
+            conn.execute("INSERT INTO custom_models VALUES(?,?,?,?,?,?,?)",(k,m['n'],m['p'],m['m'],m['e'],m['d'],m['c']))
+        conn.commit()
+        conn.close()
     return RedirectResponse("/models",303)
 
 @app.get("/users",response_class=HTMLResponse)
 def users_page(u:str=Depends(auth_admin)):
-    c=config();rows=""
-    for uid,mid in c['user_models'].items():rows+=f'<tr class="border-b border-dark-700"><td class="py-4 px-4 font-mono text-gray-300">{uid}</td><td class="py-4 px-4"><span class="px-2 py-1 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20 text-sm">{mid}</span></td><td class="py-4 px-4"><form action="/users/del" method="post"><input type="hidden" name="uid" value="{uid}"><button class="text-red-500 hover:text-white transition-colors">✕</button></form></td></tr>'
+    c=config()
+    rows=""
+    for uid,mid in c['user_models'].items():
+        rows+=f'<tr class="border-b border-dark-700"><td class="py-4 px-4 font-mono text-gray-300">{uid}</td><td class="py-4 px-4"><span class="px-2 py-1 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20 text-sm">{mid}</span></td><td class="py-4 px-4"><form action="/users/del" method="post"><input type="hidden" name="uid" value="{uid}"><button class="text-red-500 hover:text-white transition-colors">✕</button></form></td></tr>'
     h=f'''<div class="max-w-5xl mx-auto space-y-8"><h2 class="text-3xl font-bold">User Management</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="bg-dark-800 p-6 rounded-2xl border border-dark-700 h-fit"><h3 class="font-bold mb-4 text-lg">Set User Model</h3><form action="/users/set" method="post" class="space-y-4"><input name="uid" required placeholder="Discord User ID" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><input name="model_id" required placeholder="Model ID (ex: groq)" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded-xl font-bold text-black shadow-lg shadow-yellow-500/20 transition-all">Assign Model</button></form></div><div class="md:col-span-2 bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden"><table class="w-full text-left"><thead><tr class="bg-dark-900/50 border-b border-dark-700"><th class="py-4 px-4 text-sm font-medium text-gray-400">User ID</th><th class="py-4 px-4 text-sm font-medium text-gray-400">Assigned Model</th><th class="py-4 px-4"></th></tr></thead><tbody>{rows}</tbody></table></div></div></div>'''
     return page("Users",h,"users")
 
 @app.post("/users/set")
 async def set_user(req:Request,u:str=Depends(auth_admin)):
-    f=await req.form();log_action("set_user",f"{f['uid']}={f['model_id']}");with db_lock:conn=get_db();conn.execute('INSERT OR REPLACE INTO user_models VALUES(?,?)',(f['uid'],f['model_id']));conn.commit();conn.close()
+    f=await req.form()
+    log_action("set_user",f"{f['uid']}={f['model_id']}")
+    with db_lock:
+        conn=get_db()
+        conn.execute('INSERT OR REPLACE INTO user_models VALUES(?,?)',(f['uid'],f['model_id']))
+        conn.commit()
+        conn.close()
     return RedirectResponse("/users",303)
 
 @app.post("/users/del")
 async def del_user(req:Request,u:str=Depends(auth_admin)):
-    f=await req.form();log_action("del_user",f"{f['uid']}");with db_lock:conn=get_db();conn.execute('DELETE FROM user_models WHERE uid=?',(f['uid'],));conn.commit();conn.close()
+    f=await req.form()
+    log_action("del_user",f"{f['uid']}")
+    with db_lock:
+        conn=get_db()
+        conn.execute('DELETE FROM user_models WHERE uid=?',(f['uid'],))
+        conn.commit()
+        conn.close()
     return RedirectResponse("/users",303)
 
 @app.get("/settings",response_class=HTMLResponse)
 def settings_page(u:str=Depends(auth_admin)):
-    c=config();s=c['settings'];models=c['models'];grps={};
-    for k,m in models.items():p=m['p'];grps.setdefault(p,[]).append((k,m))
+    c=config()
+    s=c['settings']
+    models=c['models']
+    grps={}
+    for k,m in models.items():
+        p=m['p']
+        grps.setdefault(p,[]).append((k,m))
     opts=""
     for p,items in grps.items():
         opts+=f'<optgroup label="{p.upper()}">'
-        for k,m in items:opts+=f'<option value="{k}" {"selected" if k==s.get("default_model") else ""}>{m["e"]} {m["n"]}</option>'
+        for k,m in items:
+            opts+=f'<option value="{k}" {"selected" if k==s.get("default_model") else ""}>{m["e"]} {m["n"]}</option>'
         opts+='</optgroup>'
     h=f'''<div class="max-w-3xl mx-auto"><h2 class="text-3xl font-bold mb-8">System Settings</h2><form action="/settings" method="post" class="bg-dark-800 p-8 rounded-2xl border border-dark-700 shadow-xl space-y-6"><div><label class="block text-gray-400 mb-2 font-medium">Default Model</label><select name="default_model" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{opts}</select></div><div><label class="block text-gray-400 mb-2 font-medium">System Prompt</label><textarea name="system_prompt" rows="5" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none leading-relaxed">{s.get('system_prompt','')}</textarea></div><div class="grid grid-cols-3 gap-6"><div><label class="block text-gray-400 mb-2 text-sm">Rate Limit (s)</label><input type="number" name="rate_limit_ai" value="{s.get('rate_limit_ai','5')}" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-center font-mono"></div><div><label class="block text-gray-400 mb-2 text-sm">Max Memory</label><input type="number" name="max_memory_messages" value="{s.get('max_memory_messages','25')}" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-center font-mono"></div><div><label class="block text-gray-400 mb-2 text-sm">Timeout (min)</label><input type="number" name="memory_timeout_minutes" value="{s.get('memory_timeout_minutes','30')}" class="w-full bg-dark-900 border border-dark-600 rounded-xl p-3 text-center font-mono"></div></div><div class="pt-6 border-t border-dark-700"><button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-xl font-bold shadow-lg shadow-purple-500/20 transition-all">Save Changes</button></div></form></div>'''
     return page("Settings",h,"settings")
@@ -246,18 +297,27 @@ async def save_settings(req:Request,u:str=Depends(auth_admin)):
         conn=get_db()
         for k,v in f.items():
             conn.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',(k,v))
-        conn.commit();conn.close()
+        conn.commit()
+        conn.close()
     return RedirectResponse("/settings",303)
 
 @app.get("/logs",response_class=HTMLResponse)
 def logs_page(u:str=Depends(auth_admin)):
-    with db_lock:conn=get_db();logs=conn.execute('SELECT * FROM logs ORDER BY id DESC LIMIT 50').fetchall();conn.close()
+    with db_lock:
+        conn=get_db()
+        logs=conn.execute('SELECT * FROM logs ORDER BY id DESC LIMIT 50').fetchall()
+        conn.close()
     rows=""
-    for l in logs:rows+=f'<tr class="border-b border-dark-700 hover:bg-dark-700/50"><td class="py-3 px-4 text-gray-500 text-xs font-mono">{l["ts"]}</td><td class="py-3 px-4"><span class="px-2 py-1 bg-dark-900 border border-dark-600 rounded text-xs text-blue-400 font-mono">{l["action"]}</span></td><td class="py-3 px-4 text-sm text-gray-300">{l["details"]}</td></tr>'
+    for l in logs:
+        rows+=f'<tr class="border-b border-dark-700 hover:bg-dark-700/50"><td class="py-3 px-4 text-gray-500 text-xs font-mono">{l["ts"]}</td><td class="py-3 px-4"><span class="px-2 py-1 bg-dark-900 border border-dark-600 rounded text-xs text-blue-400 font-mono">{l["action"]}</span></td><td class="py-3 px-4 text-sm text-gray-300">{l["details"]}</td></tr>'
     h=f'''<div class="max-w-4xl mx-auto"><h2 class="text-3xl font-bold mb-8">Activity Logs</h2><div class="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden shadow-xl"><table class="w-full text-left"><thead><tr class="bg-dark-900/50 border-b border-dark-700"><th class="py-4 px-4 font-medium text-gray-400 text-sm">Time</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Action</th><th class="py-4 px-4 font-medium text-gray-400 text-sm">Details</th></tr></thead><tbody>{rows}</tbody></table></div></div>'''
     return page("Logs",h,"logs")
 
 def start_web_panel(host="0.0.0.0",port=8080,admin_key="admin123"):
-    global ADMIN_PASS;ADMIN_PASS=admin_key;import uvicorn;uvicorn.run(app,host=host,port=port,log_level="warning")
+    global ADMIN_PASS
+    ADMIN_PASS=admin_key
+    import uvicorn
+    uvicorn.run(app,host=host,port=port,log_level="warning")
 
-if __name__=="__main__":start_web_panel()
+if __name__=="__main__":
+    start_web_panel()

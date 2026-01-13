@@ -4,7 +4,7 @@ from fastapi.security import HTTPBasic,HTTPBasicCredentials
 from contextlib import asynccontextmanager
 import sqlite3,secrets,os,threading,json
 
-# --- 40+ MODEL LENGKAP (Fixed) ---
+# --- DEFAULT MODELS ---
 DEFAULT_MODELS = {
     # GROQ
     "groq":{"e":"⚡","n":"Groq","d":"Llama 3.3 70B","c":"main","p":"groq","m":"llama-3.3-70b-versatile"},
@@ -12,18 +12,16 @@ DEFAULT_MODELS = {
     "groq_mav":{"e":"🦙","n":"Groq-Maverick","d":"Llama 4 Maverick","c":"main","p":"groq","m":"meta-llama/llama-4-maverick-17b-128e-instruct"},
     "groq_scout":{"e":"🔍","n":"Groq-Scout","d":"Llama 4 Scout","c":"main","p":"groq","m":"meta-llama/llama-4-scout-17b-16e-instruct"},
     "groq_guard":{"e":"🛡️","n":"Groq-Guard","d":"Llama Guard 4","c":"main","p":"groq","m":"meta-llama/llama-guard-4-12b"},
-    "groq_guard_p":{"e":"🛡️","n":"Groq-Prompt Guard","d":"Prompt Guard 86M","c":"main","p":"groq","m":"meta-llama/llama-prompt-guard-2-86m"},
     "groq_kimi":{"e":"🌙","n":"Groq-Kimi","d":"Kimi K2 Instruct","c":"main","p":"groq","m":"moonshotai/kimi-k2-instruct"},
     "groq_gpt120":{"e":"🤖","n":"Groq-GPT120","d":"GPT OSS 120B","c":"main","p":"groq","m":"openai/gpt-oss-120b"},
     "groq_gpt20":{"e":"🤖","n":"Groq-GPT20","d":"GPT OSS 20B","c":"main","p":"groq","m":"openai/gpt-oss-20b"},
-    "groq_whisper":{"e":"🎙️","n":"Groq-Whisper","d":"Whisper Large V3","c":"main","p":"groq","m":"whisper-large-v3"},
     
     # GEMINI
     "gemini_flash":{"e":"💎","n":"Gemini Flash","d":"2.0 Flash Lite","c":"gemini","p":"gemini","m":"gemini-2.0-flash-lite"},
     "gemini_lite":{"e":"💎","n":"Gemini Lite","d":"Flash Lite Latest","c":"gemini","p":"gemini","m":"gemini-flash-lite-latest"},
     "gemini_robot":{"e":"🤖","n":"Gemini Robot","d":"Robotics Preview","c":"gemini","p":"gemini","m":"gemini-robotics-er-1.5-preview"},
 
-    # OPENROUTER (FREE)
+    # OPENROUTER
     "or_llama":{"e":"🦙","n":"OR-Llama","d":"Llama 3.3 70B","c":"openrouter","p":"openrouter","m":"meta-llama/llama-3.3-70b-instruct:free"},
     "or_gemini":{"e":"💎","n":"OR-Gemini","d":"Gemini 2.0 Flash","c":"openrouter","p":"openrouter","m":"google/gemini-2.0-flash-exp:free"},
     "or_molmo":{"e":"👁️","n":"OR-Molmo","d":"Molmo2 8B","c":"openrouter","p":"openrouter","m":"allenai/molmo-2-8b:free"},
@@ -38,7 +36,7 @@ DEFAULT_MODELS = {
     "or_r1t":{"e":"🧠","n":"OR-R1T Chimera","d":"R1T Chimera","c":"openrouter","p":"openrouter","m":"deepseek/r1t-chimera:free"},
     "or_r1t2":{"e":"🧠","n":"OR-R1T2 Chimera","d":"DeepSeek R1T2","c":"openrouter","p":"openrouter","m":"deepseek/deepseek-r1t2-chimera:free"},
 
-    # POLLINATIONS (FREE/API)
+    # POLLINATIONS
     "pf_openai":{"e":"🆓","n":"PollFree-OpenAI","d":"GPT-5 Mini","c":"pollinations_free","p":"pollinations_free","m":"openai"},
     "pf_fast":{"e":"⚡","n":"PollFree-Fast","d":"GPT-5 Nano","c":"pollinations_free","p":"pollinations_free","m":"openai-fast"},
     "pf_nova":{"e":"🚀","n":"PollFree-Nova","d":"Amazon Nova","c":"pollinations_free","p":"pollinations_free","m":"nova-fast"},
@@ -76,43 +74,64 @@ def get_db():
 def init_db():
     with db_lock:
         conn=get_db()
-        conn.executescript('''CREATE TABLE IF NOT EXISTS api_keys(name TEXT PRIMARY KEY,key_value TEXT);CREATE TABLE IF NOT EXISTS custom_models(id TEXT PRIMARY KEY,name TEXT,provider TEXT,model_id TEXT,emoji TEXT,description TEXT,category TEXT);CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);CREATE TABLE IF NOT EXISTS user_models(uid TEXT PRIMARY KEY,model_id TEXT);CREATE TABLE IF NOT EXISTS logs(id INTEGER PRIMARY KEY AUTOINCREMENT,ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,action TEXT,details TEXT);''')
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS api_keys(name TEXT PRIMARY KEY,key_value TEXT);
+            CREATE TABLE IF NOT EXISTS custom_models(id TEXT PRIMARY KEY,name TEXT,provider TEXT,model_id TEXT,emoji TEXT,description TEXT,category TEXT);
+            CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
+            CREATE TABLE IF NOT EXISTS user_models(uid TEXT PRIMARY KEY,model_id TEXT);
+            CREATE TABLE IF NOT EXISTS logs(id INTEGER PRIMARY KEY AUTOINCREMENT,ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,action TEXT,details TEXT);
+        ''')
         if conn.execute("SELECT COUNT(*) FROM api_keys").fetchone()[0] == 0:
             for k,v in DEFAULT_KEYS.items():
                 if v: conn.execute("INSERT OR IGNORE INTO api_keys VALUES(?,?)",(k,v))
+        
         if conn.execute("SELECT COUNT(*) FROM custom_models").fetchone()[0] == 0:
             for k,m in DEFAULT_MODELS.items():
                 conn.execute("INSERT OR IGNORE INTO custom_models VALUES(?,?,?,?,?,?,?)",(k, m['n'], m['p'], m['m'], m['e'], m['d'], m['c']))
+
         defaults={"default_model":"groq","system_prompt":"You are a helpful AI assistant.","rate_limit_ai":"5","max_memory_messages":"25","memory_timeout_minutes":"30"}
         for k,v in defaults.items():
             conn.execute('INSERT OR IGNORE INTO settings(key,value)VALUES(?,?)',(k,v))
-        conn.commit();conn.close()
+        
+        conn.commit()
+        conn.close()
 
 def log_action(action,details=""):
-    with db_lock:conn=get_db();conn.execute('INSERT INTO logs(action,details)VALUES(?,?)',(action,details));conn.execute('DELETE FROM logs WHERE id NOT IN (SELECT id FROM logs ORDER BY id DESC LIMIT 100)');conn.commit();conn.close()
+    with db_lock:
+        conn=get_db()
+        conn.execute('INSERT INTO logs(action,details)VALUES(?,?)',(action,details))
+        conn.execute('DELETE FROM logs WHERE id NOT IN (SELECT id FROM logs ORDER BY id DESC LIMIT 100)')
+        conn.commit()
+        conn.close()
 
 @asynccontextmanager
-async def lifespan(app:FastAPI):init_db();yield
+async def lifespan(app:FastAPI):
+    init_db();yield
 
 app=FastAPI(docs_url=None,redoc_url=None,lifespan=lifespan)
 security=HTTPBasic()
 
 def get_key(name):
-    with db_lock:conn=get_db();r=conn.execute('SELECT key_value FROM api_keys WHERE name=?',(name,)).fetchone();conn.close();return r['key_value']if r else None
+    with db_lock:
+        conn=get_db();r=conn.execute('SELECT key_value FROM api_keys WHERE name=?',(name,)).fetchone();conn.close()
+        return r['key_value']if r else None
 
 def config():
     with db_lock:
         conn=get_db()
         keys={r['name']:r['key_value']for r in conn.execute('SELECT * FROM api_keys')}
         models={}
-        for r in conn.execute('SELECT * FROM custom_models'):models[r['id']]={'e':r['emoji']or'🤖','n':r['name'],'d':r['description']or r['name'],'c':r['category']or'custom','p':r['provider'],'m':r['model_id']}
+        for r in conn.execute('SELECT * FROM custom_models'):
+            models[r['id']]={'e':r['emoji']or'🤖','n':r['name'],'d':r['description']or r['name'],'c':r['category']or'custom','p':r['provider'],'m':r['model_id']}
         settings={r['key']:r['value']for r in conn.execute('SELECT * FROM settings')}
         user_models={r['uid']:r['model_id']for r in conn.execute('SELECT * FROM user_models')}
         conn.close()
         return{"keys":keys,"models":models,"settings":settings,"user_models":user_models}
 
 def auth_admin(c:HTTPBasicCredentials=Depends(security)):
-    if not(secrets.compare_digest(c.username.encode(),ADMIN_USER.encode())and secrets.compare_digest(c.password.encode(),ADMIN_PASS.encode())):raise HTTPException(401,"Unauthorized",{"WWW-Authenticate":"Basic"})
+    u_ok=secrets.compare_digest(c.username.encode(),ADMIN_USER.encode())
+    p_ok=secrets.compare_digest(c.password.encode(),ADMIN_PASS.encode())
+    if not(u_ok and p_ok):raise HTTPException(401,"Unauthorized",{"WWW-Authenticate":"Basic"})
     return c.username
 
 def auth_bot(req:Request):
@@ -120,10 +139,13 @@ def auth_bot(req:Request):
 
 @app.get("/")
 def root():return RedirectResponse("/dash")
+
 @app.get("/health")
 def health():return{"status":"ok","admin":ADMIN_USER}
+
 @app.get("/api/bot/config")
-def api_config(req:Request):auth_bot(req);return config()
+def api_config(req:Request):
+    auth_bot(req);return config()
 
 def page(title,content,active=""):
     nav=[("dash","📊","Dashboard"),("keys","🔑","API Keys"),("models","🤖","Models"),("users","👥","Users"),("settings","⚙️","Settings"),("logs","📋","Logs")]
@@ -145,12 +167,24 @@ def keys_page(u:str=Depends(auth_admin)):
 
 @app.post("/keys")
 async def save_keys(req:Request,u:str=Depends(auth_admin)):
-    f=await req.form();log_action("save_keys","Updated API keys");with db_lock:conn=get_db();[conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v.strip())) if v.strip() else conn.execute('DELETE FROM api_keys WHERE name=?',(k,)) for k,v in f.items()];conn.commit();conn.close()
+    f=await req.form()
+    log_action("save_keys","Updated API keys")
+    with db_lock:
+        conn=get_db()
+        for k,v in f.items():
+            if v.strip(): conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v.strip()))
+            else: conn.execute('DELETE FROM api_keys WHERE name=?',(k,))
+        conn.commit();conn.close()
     return RedirectResponse("/keys",303)
 
 @app.post("/keys/sync")
 async def sync_keys(u:str=Depends(auth_admin)):
-    log_action("sync_keys","Synced from Environment");with db_lock:conn=get_db();[conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v)) for k,v in DEFAULT_KEYS.items() if v];conn.commit();conn.close()
+    log_action("sync_keys","Synced from Environment")
+    with db_lock:
+        conn=get_db()
+        for k,v in DEFAULT_KEYS.items():
+            if v: conn.execute('INSERT OR REPLACE INTO api_keys VALUES(?,?)',(k,v))
+        conn.commit();conn.close()
     return RedirectResponse("/keys",303)
 
 @app.get("/models",response_class=HTMLResponse)
@@ -206,7 +240,13 @@ def settings_page(u:str=Depends(auth_admin)):
 
 @app.post("/settings")
 async def save_settings(req:Request,u:str=Depends(auth_admin)):
-    f=await req.form();log_action("save_settings");with db_lock:conn=get_db();[conn.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',(k,v))for k,v in f.items()];conn.commit();conn.close()
+    f=await req.form()
+    log_action("save_settings")
+    with db_lock:
+        conn=get_db()
+        for k,v in f.items():
+            conn.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',(k,v))
+        conn.commit();conn.close()
     return RedirectResponse("/settings",303)
 
 @app.get("/logs",response_class=HTMLResponse)

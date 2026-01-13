@@ -1,17 +1,13 @@
 services:
   - type: web
-    name: bot-config-panel
+    name: bot-panel
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: ADMIN_USER
-        sync: false
+        value: admin
       - key: ADMIN_PASS
-        sync: false
+        value: admin123
       - key: BOT_SECRET
-        sync: false
-    disk:
-      name: config-data
-      mountPath: /app/data
-      sizeGB: 1
+        value: rahasia_bot_123

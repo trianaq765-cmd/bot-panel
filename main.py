@@ -11,7 +11,9 @@ BOT_SECRET=os.getenv("CONFIG_BOT_SECRET","bot_secret_key_123")
 DB_PATH=os.getenv("DB_PATH","bot_config.db")
 db_lock=threading.Lock()
 logger=logging.getLogger("uvicorn")
-def get_db():conn=sqlite3.connect(DB_PATH,check_same_thread=False);conn.row_factory=sqlite3.Row;return conn
+def get_db():
+ if os.path.dirname(DB_PATH):os.makedirs(os.path.dirname(DB_PATH),exist_ok=True)
+ conn=sqlite3.connect(DB_PATH,check_same_thread=False);conn.row_factory=sqlite3.Row;return conn
 def init_db():
  with db_lock:
   conn=get_db()

@@ -75,16 +75,83 @@ class Database:
             ''')
             conn.commit()
             
-            # Set default password
+            # Check if models exist
+            count = conn.execute("SELECT COUNT(*) FROM ai_models").fetchone()[0]
+            if count == 0:
+                self._seed_models(conn)
+            
+            # Set default password if not exists
             r = conn.execute("SELECT 1 FROM settings WHERE key='admin_password_hash'").fetchone()
             if not r:
                 h = hashlib.sha256('admin123'.encode()).hexdigest()
                 conn.execute("INSERT INTO settings VALUES('admin_password_hash', ?)", (h,))
                 conn.execute("INSERT OR IGNORE INTO settings VALUES('default_model', 'groq')")
-                conn.execute("INSERT OR IGNORE INTO settings VALUES('system_prompt', 'You are a helpful AI assistant.')")
+                conn.execute("INSERT OR IGNORE INTO settings VALUES('system_prompt', 'You are a helpful AI assistant. Default language: Bahasa Indonesia.')")
+                conn.execute("INSERT OR IGNORE INTO settings VALUES('max_memory_messages', '25')")
+                conn.execute("INSERT OR IGNORE INTO settings VALUES('memory_timeout_minutes', '30')")
                 conn.commit()
             
             conn.close()
+    
+    def _seed_models(self, conn):
+        """Seed 40+ default AI models"""
+        models = [
+            # Main providers
+            ('groq', '⚡', 'Groq', 'Llama 3.3 70B Versatile', 'main', 'groq', 'llama-3.3-70b-versatile', 1, 1, 10),
+            ('groq_8b', '⚡', 'Groq-8B', 'Llama 3.1 8B Instant', 'main', 'groq', 'llama-3.1-8b-instant', 1, 0, 11),
+            ('groq_maverick', '🦙', 'Groq-Maverick', 'Llama 4 Maverick', 'main', 'groq', 'meta-llama/llama-4-maverick-17b-128e-instruct', 1, 0, 12),
+            ('groq_scout', '🔍', 'Groq-Scout', 'Llama 4 Scout', 'main', 'groq', 'meta-llama/llama-4-scout-17b-16e-instruct', 1, 0, 13),
+            ('groq_kimi', '🌙', 'Groq-Kimi', 'Kimi K2 Instruct', 'main', 'groq', 'moonshotai/kimi-k2-instruct', 1, 0, 14),
+            ('cerebras', '🧠', 'Cerebras', 'Llama 3.3 70B', 'main', 'cerebras', 'llama-3.3-70b', 1, 0, 20),
+            ('sambanova', '🦣', 'SambaNova', 'Llama 3.3 70B Instruct', 'main', 'sambanova', 'Meta-Llama-3.3-70B-Instruct', 1, 0, 30),
+            ('cloudflare', '☁️', 'Cloudflare', 'Llama 3.3 70B', 'main', 'cloudflare', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', 1, 0, 40),
+            ('cohere', '🔷', 'Cohere', 'Command R+', 'main', 'cohere', 'command-r-plus-08-2024', 1, 0, 50),
+            ('mistral', 'Ⓜ️', 'Mistral', 'Mistral Small', 'main', 'mistral', 'mistral-small-latest', 1, 0, 60),
+            ('together', '🤝', 'Together', 'Llama 3.3 Turbo', 'main', 'together', 'meta-llama/Llama-3.3-70B-Instruct-Turbo', 1, 0, 70),
+            ('moonshot', '🌙', 'Moonshot', 'Kimi 128K', 'main', 'moonshot', 'moonshot-v1-8k', 1, 0, 80),
+            ('huggingface', '🤗', 'HuggingFace', 'Mixtral 8x7B', 'main', 'huggingface', 'mistralai/Mixtral-8x7B-Instruct-v0.1', 1, 0, 90),
+            ('replicate', '🔄', 'Replicate', 'Llama 405B', 'main', 'replicate', 'meta/meta-llama-3.1-405b-instruct', 1, 0, 100),
+            ('tavily', '🔍', 'Tavily', 'Web Search', 'main', 'tavily', 'search', 1, 0, 110),
+            
+            # Gemini
+            ('gemini_flash', '💎', 'Gemini Flash', '2.0 Flash Lite', 'gemini', 'gemini', 'gemini-2.0-flash-lite', 1, 0, 200),
+            ('gemini_lite', '💎', 'Gemini Lite', 'Flash Lite Latest', 'gemini', 'gemini', 'gemini-flash-lite-latest', 1, 0, 201),
+            ('gemini_pro', '💎', 'Gemini Pro', '1.5 Pro', 'gemini', 'gemini', 'gemini-1.5-pro', 1, 0, 202),
+            
+            # OpenRouter
+            ('or_llama', '🦙', 'OR-Llama', 'Llama 3.3 70B Free', 'openrouter', 'openrouter', 'meta-llama/llama-3.3-70b-instruct:free', 1, 0, 300),
+            ('or_gemini', '💎', 'OR-Gemini', 'Gemini 2.0 Free', 'openrouter', 'openrouter', 'google/gemini-2.0-flash-exp:free', 1, 0, 301),
+            ('or_molmo', '👁️', 'OR-Molmo', 'Molmo2 8B', 'openrouter', 'openrouter', 'allenai/molmo-2-8b:free', 1, 0, 302),
+            ('or_mimo', '🎭', 'OR-MiMo', 'MiMo V2 Flash', 'openrouter', 'openrouter', 'xiaomi/mimo-v2-flash:free', 1, 0, 303),
+            ('or_nemotron', '🔥', 'OR-Nemotron', 'Nemotron 3 Nano', 'openrouter', 'openrouter', 'nvidia/nemotron-3-nano-30b-a3b:free', 1, 0, 304),
+            ('or_devstral', '💻', 'OR-Devstral', 'Devstral 2', 'openrouter', 'openrouter', 'mistralai/devstral-2-2512:free', 1, 0, 305),
+            ('or_trinity', '🔺', 'OR-Trinity', 'Trinity Mini', 'openrouter', 'openrouter', 'trinity/trinity-mini:free', 1, 0, 306),
+            ('or_glm', '🇨🇳', 'OR-GLM', 'GLM 4.5 Air', 'openrouter', 'openrouter', 'zhipu/glm-4.5-air:free', 1, 0, 307),
+            ('or_kimi', '🌙', 'OR-Kimi', 'Kimi K2', 'openrouter', 'openrouter', 'moonshot/kimi-k2-0711:free', 1, 0, 308),
+            ('or_uncensored', '🔓', 'OR-Uncensored', 'Uncensored Model', 'openrouter', 'openrouter', 'undi95/uncensored:free', 1, 0, 309),
+            ('or_r1', '🧠', 'OR-DeepSeek R1', 'R1 0528', 'openrouter', 'openrouter', 'deepseek/deepseek-r1-0528:free', 1, 0, 310),
+            ('or_qwen', '🔮', 'OR-Qwen', 'Qwen3 235B', 'openrouter', 'openrouter', 'qwen/qwen3-235b-a22b:free', 1, 0, 312),
+            
+            # Pollinations Free
+            ('pf_openai', '🆓', 'PollFree-OpenAI', 'GPT-5 Mini', 'pollinations', 'pollinations_free', 'openai', 1, 0, 400),
+            ('pf_fast', '⚡', 'PollFree-Fast', 'GPT-5 Nano', 'pollinations', 'pollinations_free', 'openai-fast', 1, 0, 401),
+            ('pf_nova', '🚀', 'PollFree-Nova', 'Amazon Nova', 'pollinations', 'pollinations_free', 'nova-fast', 1, 0, 402),
+            ('pf_mistral', 'Ⓜ️', 'PollFree-Mistral', 'Mistral 3.2', 'pollinations', 'pollinations_free', 'mistral', 1, 0, 403),
+            ('pf_gemini', '💎', 'PollFree-Gemini', 'Gemini 2.5 Lite', 'pollinations', 'pollinations_free', 'gemini-fast', 1, 0, 404),
+            ('pf_qwen', '🔮', 'PollFree-Qwen', 'Qwen3 Coder', 'pollinations', 'pollinations_free', 'qwen-coder', 1, 0, 405),
+            ('pf_deepseek', '🌊', 'PollFree-DeepSeek', 'DeepSeek V3.2', 'pollinations', 'pollinations_free', 'deepseek', 1, 0, 406),
+            ('pf_grok', '❌', 'PollFree-Grok', 'Grok 4 Fast', 'pollinations', 'pollinations_free', 'grok', 1, 0, 407),
+            ('pf_sonar', '🔍', 'PollFree-Sonar', 'Perplexity Sonar', 'pollinations', 'pollinations_free', 'sonar', 1, 0, 408),
+            ('poll_free', '🌸', 'PollFree-Auto', 'Auto Select', 'pollinations', 'pollinations_free', 'auto', 1, 0, 409),
+        ]
+        
+        conn.executemany('''
+            INSERT OR IGNORE INTO ai_models 
+            (id, emoji, name, description, category, provider, model_id, is_enabled, is_default, priority)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', models)
+        conn.commit()
+        print(f"✅ Seeded {len(models)} AI models")
     
     # ===== Settings =====
     def get_setting(self, key, default=None):
@@ -114,6 +181,7 @@ class Database:
         expires = datetime.now().timestamp() + 86400
         with self.lock:
             conn = self._get_conn()
+            conn.execute('DELETE FROM sessions WHERE expires_at < ?', (datetime.now().isoformat(),))
             conn.execute('INSERT INTO sessions VALUES(?,?)', (token, datetime.fromtimestamp(expires).isoformat()))
             conn.commit()
             conn.close()
@@ -140,7 +208,7 @@ class Database:
     def get_all_api_keys(self):
         with self.lock:
             conn = self._get_conn()
-            rows = conn.execute('SELECT id, name, key_value, provider, is_active, test_status FROM api_keys').fetchall()
+            rows = conn.execute('SELECT id, name, key_value, provider, is_active, test_status FROM api_keys ORDER BY provider, name').fetchall()
             conn.close()
             return [{'id': r[0], 'name': r[1], 'key_value': r[2], 'provider': r[3], 'is_active': bool(r[4]), 'test_status': r[5]} for r in rows]
     
@@ -158,7 +226,7 @@ class Database:
                 conn.execute('INSERT INTO api_keys (name, key_value, provider) VALUES(?,?,?)', (name, key_value, provider))
                 conn.commit()
                 return True, "Added"
-            except:
+            except sqlite3.IntegrityError:
                 return False, "Already exists"
             finally:
                 conn.close()
@@ -183,7 +251,7 @@ class Database:
     def update_api_test_result(self, name, status, response_time=None, error=None):
         with self.lock:
             conn = self._get_conn()
-            conn.execute('UPDATE api_keys SET test_status=? WHERE name=?', (status, name))
+            conn.execute('UPDATE api_keys SET test_status=?, last_tested=CURRENT_TIMESTAMP WHERE name=?', (status, name))
             conn.execute('INSERT INTO test_logs (api_name, status, response_time, error_message) VALUES(?,?,?,?)',
                         (name, status, response_time, error))
             conn.commit()
@@ -193,14 +261,24 @@ class Database:
     def get_all_models(self):
         with self.lock:
             conn = self._get_conn()
-            rows = conn.execute('SELECT id, emoji, name, description, category, provider, model_id, is_enabled, is_default, priority FROM ai_models ORDER BY priority').fetchall()
+            rows = conn.execute('''
+                SELECT id, emoji, name, description, category, provider, model_id, is_enabled, is_default, priority 
+                FROM ai_models ORDER BY priority, name
+            ''').fetchall()
             conn.close()
-            return [{'id': r[0], 'emoji': r[1], 'name': r[2], 'description': r[3], 'category': r[4], 'provider': r[5], 'model_id': r[6], 'is_enabled': bool(r[7]), 'is_default': bool(r[8]), 'priority': r[9]} for r in rows]
+            return [{
+                'id': r[0], 'emoji': r[1], 'name': r[2], 'description': r[3], 
+                'category': r[4], 'provider': r[5], 'model_id': r[6], 
+                'is_enabled': bool(r[7]), 'is_default': bool(r[8]), 'priority': r[9]
+            } for r in rows]
     
     def get_enabled_models(self):
         with self.lock:
             conn = self._get_conn()
-            rows = conn.execute('SELECT id, emoji, name, description, category, provider, model_id FROM ai_models WHERE is_enabled=1').fetchall()
+            rows = conn.execute('''
+                SELECT id, emoji, name, description, category, provider, model_id 
+                FROM ai_models WHERE is_enabled=1 ORDER BY priority
+            ''').fetchall()
             conn.close()
             return {r[0]: {'e': r[1], 'n': r[2], 'd': r[3], 'c': r[4], 'p': r[5], 'm': r[6]} for r in rows}
     
@@ -208,20 +286,23 @@ class Database:
         with self.lock:
             conn = self._get_conn()
             try:
-                conn.execute('INSERT INTO ai_models (id, emoji, name, description, category, provider, model_id) VALUES(?,?,?,?,?,?,?)',
-                           (id, emoji, name, description, category, provider, model_id))
+                conn.execute('''
+                    INSERT INTO ai_models (id, emoji, name, description, category, provider, model_id) 
+                    VALUES(?,?,?,?,?,?,?)
+                ''', (id, emoji, name, description, category, provider, model_id))
                 conn.commit()
                 return True, "Added"
-            except:
-                return False, "Already exists"
+            except sqlite3.IntegrityError:
+                return False, "Model ID already exists"
             finally:
                 conn.close()
     
     def update_model(self, model_id, **kwargs):
+        valid_fields = ['emoji', 'name', 'description', 'category', 'provider', 'model_id', 'is_enabled', 'is_default', 'priority']
         with self.lock:
             conn = self._get_conn()
             for k, v in kwargs.items():
-                if k in ['emoji', 'name', 'description', 'category', 'provider', 'model_id', 'is_enabled', 'is_default', 'priority']:
+                if k in valid_fields and v is not None:
                     conn.execute(f'UPDATE ai_models SET {k}=? WHERE id=?', (v, model_id))
             conn.commit()
             conn.close()
@@ -240,6 +321,15 @@ class Database:
             conn.execute('UPDATE ai_models SET is_default=1 WHERE id=?', (model_id,))
             conn.execute("INSERT OR REPLACE INTO settings VALUES('default_model', ?)", (model_id,))
             conn.commit()
+            conn.close()
+    
+    def reset_models(self):
+        """Reset models to default"""
+        with self.lock:
+            conn = self._get_conn()
+            conn.execute('DELETE FROM ai_models')
+            conn.commit()
+            self._seed_models(conn)
             conn.close()
     
     # ===== User Models =====

@@ -30,7 +30,7 @@ local GID=93978595733734
 local CFG={
     -- Junkie Dashboard Settings
     junkie_service = "ToingDc",        -- Name of Service from Junkie dashboard
-    junkie_identifier = "2263",   -- The id of your provider name
+    junkie_identifier = "4005",   -- The id of your provider name
     junkie_provider = "hallo",       -- Junkie provider name
     
     -- Script Settings
